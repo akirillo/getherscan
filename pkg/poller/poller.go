@@ -5,15 +5,17 @@ import (
 	"context"
 	"getherscan/pkg/models"
 	"math/big"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type Poller struct {
-	DB        *models.DB
-	EthClient *ethclient.Client
-	Context   context
+	DB               *models.DB
+	EthClient        *ethclient.Client
+	Context          context.Context
 	TrackedAddresses [][]byte
 }
 
@@ -29,7 +31,8 @@ func (poller *Poller) Initialize(wsRPCEndpoint, dbConnectionString string, timeo
 		return nil, err
 	}
 
-	poller.Context, cancel := context.WithTimeout(context.Background(), timeout*time.Second)
+	pollerContext, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	poller.Context = pollerContext
 
 	poller.TrackedAddresses = trackedAddresses
 
@@ -45,7 +48,7 @@ func (poller *Poller) Poll() error {
 
 	for {
 		select {
-		case err := <-sub.Err():
+		case err := <-subscription.Err():
 			return err
 		case header := <-headerChannel:
 			err = poller.Index(header.Hash())
@@ -79,17 +82,17 @@ func (poller *Poller) Index(blockHash common.Hash) error {
 		// Find common ancestor between current local head and
 		// new block (assumes we have indexed this far into
 		// the past)
-		commonAncestor, err := poller.FindCommonAncestor(head, blockModel)
+		commonAncestorHash, err := poller.FindCommonAncestorHash(head, blockModel)
 		if err != nil {
 			return err
 		}
 
-		currentTotalDifficulty, err := poller.GetTotalDifficultySince(commonAncestor, head)
+		currentTotalDifficulty, err := poller.GetTotalDifficultySince(commonAncestorHash, head)
 		if err != nil {
 			return err
 		}
 
-		newTotalDifficulty, err := poller.GetTotalDifficultySince(commonAncestor, blockModel)
+		newTotalDifficulty, err := poller.GetTotalDifficultySince(commonAncestorHash, blockModel)
 		if err != nil {
 			return err
 		}
@@ -98,7 +101,7 @@ func (poller *Poller) Index(blockHash common.Hash) error {
 			// (Effective) total difficulty of new block
 			// is higher than that of local head, reorg
 
-			err = Reorg(block, head, commonAncestor)
+			err = poller.Reorg(block, head, commonAncestorHash)
 			if err != nil {
 				return err
 			}
@@ -110,7 +113,7 @@ func (poller *Poller) Index(blockHash common.Hash) error {
 			// once it reaches the same block number),
 			// reorg
 
-			err = Reorg(block, head, commonAncestor)
+			err = poller.Reorg(block, head, commonAncestorHash)
 			if err != nil {
 				return err
 			}
@@ -160,7 +163,7 @@ func (poller *Poller) IndexNewBlock(block *types.Block) error {
 	// For each tracked address, create a model for it and write
 	// it to the DB
 
-	err = poller.IndexAddressBalancesForBlock(blockModel.Number.Int)
+	err = poller.IndexAddressBalancesForBlock(blockModel.Number.Int, blockModel.Hash)
 	if err != nil {
 		return err
 	}
@@ -168,7 +171,7 @@ func (poller *Poller) IndexNewBlock(block *types.Block) error {
 	return nil
 }
 
-func (poller *Poller) IndexAddressBalancesForBlock(blockNumber *big.Int) error {
+func (poller *Poller) IndexAddressBalancesForBlock(blockNumber *big.Int, blockHash []byte) error {
 	for _, address := range poller.TrackedAddresses {
 		balance, err := poller.EthClient.BalanceAt(
 			poller.Context,
@@ -179,7 +182,7 @@ func (poller *Poller) IndexAddressBalancesForBlock(blockNumber *big.Int) error {
 			return err
 		}
 
-		balanceModel, err := MakeBalanceModel(balance, address)
+		balanceModel, err := MakeBalanceModel(balance, address, blockHash)
 		if err != nil {
 			return err
 		}
@@ -225,13 +228,13 @@ func (poller *Poller) IndexNewOrphanedBlock(block *types.Block) error {
 }
 
 // Assumes that the common ancestor of blockA and blockB has been previously indexed
-func (poller *Poller) FindCommonAncestor(blockA, blockB *models.Block) (*models.Block, error) {
+func (poller *Poller) FindCommonAncestorHash(blockA, blockB *models.Block) ([]byte, error) {
 	var err error
-	var commonAncestor models.Block
 
 	// Step backwards through each fork until they point to the
 	// same ancestor
-	for ; blockA.ParentHash != blockB.ParentHash; {
+
+	for bytes.Compare(blockA.ParentHash, blockB.ParentHash) != 0 {
 		err = poller.DB.Where("hash = ?", blockA.ParentHash).First(blockA).Error
 		if err != nil {
 			return nil, err
@@ -243,15 +246,11 @@ func (poller *Poller) FindCommonAncestor(blockA, blockB *models.Block) (*models.
 		}
 	}
 
-	err = poller.DB.Where("hash = ?", blockA.ParentHash).First(&commonAncestor).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &commonAncestor, nil
+	return blockA.ParentHash, nil
 }
 
 func (poller *Poller) GetTotalDifficultySince(ancestorHash []byte, block *models.Block) (*big.Int, error) {
+	var err error
 	totalDifficulty := big.NewInt(0)
 
 	// Starting with given block, add difficulties up to (but
@@ -302,7 +301,7 @@ func (poller *Poller) Reorg(newHead *types.Block, oldHead *models.Block, commonA
 		return err
 	}
 
-	for currentBlock := firstToCanonicalize; bytes.Compare(currentBlock.Hash, commonAncestorHash) != 0; {
+	for currentBlock := &firstToCanonicalize; bytes.Compare(currentBlock.Hash, commonAncestorHash) != 0; {
 		err = poller.CanonicalizeBlock(currentBlock)
 		if err != nil {
 			return err
@@ -332,7 +331,7 @@ func (poller *Poller) OrphanBlock(block *models.Block) error {
 
 	// Delete balances associated with block
 
-	err = poller.DB.Delete(&models.Balance{}, "block_hash = ?", block.Hash)
+	err = poller.DB.Delete(&models.Balance{}, "block_hash = ?", block.Hash).Error
 	if err != nil {
 		return err
 	}
@@ -347,24 +346,24 @@ func (poller *Poller) OrphanBlock(block *models.Block) error {
 	// Create model for orphaned block
 
 	err = poller.DB.Create(&models.OrphanedBlock{
-		Hash: block.Hash,
-		Size: block.Size,
-		ParentHash: block.ParentHash,
-		UncleHash: block.UncleHash,
-		Coinbase: block.Coinbase,
-		Root: block.Root,
-		TxHash: block.TxHash,
+		Hash:        block.Hash,
+		Size:        block.Size,
+		ParentHash:  block.ParentHash,
+		UncleHash:   block.UncleHash,
+		Coinbase:    block.Coinbase,
+		Root:        block.Root,
+		TxHash:      block.TxHash,
 		ReceiptHash: block.ReceiptHash,
-		Bloom: block.Bloom,
-		Difficulty: block.Difficulty,
-		Number: block.Number,
-		GasLimit: block.GasLimit,
-		GasUsed: block.GasUsed,
-		Time: block.Time,
-		Extra: block.Extra,
-		MixDigest: block.MixDigest,
-		Nonce: block.Nonce,
-		BaseFee: block.BaseFee,
+		Bloom:       block.Bloom,
+		Difficulty:  block.Difficulty,
+		Number:      block.Number,
+		GasLimit:    block.GasLimit,
+		GasUsed:     block.GasUsed,
+		Time:        block.Time,
+		Extra:       block.Extra,
+		MixDigest:   block.MixDigest,
+		Nonce:       block.Nonce,
+		BaseFee:     block.BaseFee,
 	}).Error
 	if err != nil {
 		return err
@@ -374,19 +373,19 @@ func (poller *Poller) OrphanBlock(block *models.Block) error {
 
 	for _, transaction := range transactions {
 		err = poller.DB.Create(&models.OrphanedTransaction{
-			Hash: transaction.Hash,
-			Size: transaction.Size,
-			From: transaction.From,
-			Type: transaction.Type,
-			ChainID: transaction.ChainID,
-			Data: transaction.Data,
-			Gas: transaction.Gas,
-			GasPrice: transaction.GasPrice,
-			GasTipCap: transaction.GasTipCap,
-			GasFeeCap: transaction.GasFeeCap,
-			Value: transaction.Value,
-			Nonce: transaction.Nonce,
-			To: transaction.To,
+			Hash:              transaction.Hash,
+			Size:              transaction.Size,
+			From:              transaction.From,
+			Type:              transaction.Type,
+			ChainID:           transaction.ChainID,
+			Data:              transaction.Data,
+			Gas:               transaction.Gas,
+			GasPrice:          transaction.GasPrice,
+			GasTipCap:         transaction.GasTipCap,
+			GasFeeCap:         transaction.GasFeeCap,
+			Value:             transaction.Value,
+			Nonce:             transaction.Nonce,
+			To:                transaction.To,
 			OrphanedBlockHash: transaction.BlockHash,
 		}).Error
 		if err != nil {
@@ -421,24 +420,24 @@ func (poller *Poller) CanonicalizeBlock(orphanedBlock *models.OrphanedBlock) err
 	// Create model for block
 
 	err = poller.DB.Create(&models.Block{
-		Hash: orphanedBlock.Hash,
-		Size: orphanedBlock.Size,
-		ParentHash: orphanedBlock.ParentHash,
-		UncleHash: orphanedBlock.UncleHash,
-		Coinbase: orphanedBlock.Coinbase,
-		Root: orphanedBlock.Root,
-		TxHash: orphanedBlock.TxHash,
+		Hash:        orphanedBlock.Hash,
+		Size:        orphanedBlock.Size,
+		ParentHash:  orphanedBlock.ParentHash,
+		UncleHash:   orphanedBlock.UncleHash,
+		Coinbase:    orphanedBlock.Coinbase,
+		Root:        orphanedBlock.Root,
+		TxHash:      orphanedBlock.TxHash,
 		ReceiptHash: orphanedBlock.ReceiptHash,
-		Bloom: orphanedBlock.Bloom,
-		Difficulty: orphanedBlock.Difficulty,
-		Number: orphanedBlock.Number,
-		GasLimit: orphanedBlock.GasLimit,
-		GasUsed: orphanedBlock.GasUsed,
-		Time: orphanedBlock.Time,
-		Extra: orphanedBlock.Extra,
-		MixDigest: orphanedBlock.MixDigest,
-		Nonce: orphanedBlock.Nonce,
-		BaseFee: orphanedBlock.BaseFee,
+		Bloom:       orphanedBlock.Bloom,
+		Difficulty:  orphanedBlock.Difficulty,
+		Number:      orphanedBlock.Number,
+		GasLimit:    orphanedBlock.GasLimit,
+		GasUsed:     orphanedBlock.GasUsed,
+		Time:        orphanedBlock.Time,
+		Extra:       orphanedBlock.Extra,
+		MixDigest:   orphanedBlock.MixDigest,
+		Nonce:       orphanedBlock.Nonce,
+		BaseFee:     orphanedBlock.BaseFee,
 	}).Error
 	if err != nil {
 		return err
@@ -448,19 +447,19 @@ func (poller *Poller) CanonicalizeBlock(orphanedBlock *models.OrphanedBlock) err
 
 	for _, orphanedTransaction := range orphanedTransactions {
 		err = poller.DB.Create(&models.Transaction{
-			Hash: orphanedTransaction.Hash,
-			Size: orphanedTransaction.Size,
-			From: orphanedTransaction.From,
-			Type: orphanedTransaction.Type,
-			ChainID: orphanedTransaction.ChainID,
-			Data: orphanedTransaction.Data,
-			Gas: orphanedTransaction.Gas,
-			GasPrice: orphanedTransaction.GasPrice,
+			Hash:      orphanedTransaction.Hash,
+			Size:      orphanedTransaction.Size,
+			From:      orphanedTransaction.From,
+			Type:      orphanedTransaction.Type,
+			ChainID:   orphanedTransaction.ChainID,
+			Data:      orphanedTransaction.Data,
+			Gas:       orphanedTransaction.Gas,
+			GasPrice:  orphanedTransaction.GasPrice,
 			GasTipCap: orphanedTransaction.GasTipCap,
 			GasFeeCap: orphanedTransaction.GasFeeCap,
-			Value: orphanedTransaction.Value,
-			Nonce: orphanedTransaction.Nonce,
-			To: orphanedTransaction.To,
+			Value:     orphanedTransaction.Value,
+			Nonce:     orphanedTransaction.Nonce,
+			To:        orphanedTransaction.To,
 			BlockHash: orphanedTransaction.OrphanedBlockHash,
 		}).Error
 		if err != nil {
@@ -470,7 +469,7 @@ func (poller *Poller) CanonicalizeBlock(orphanedBlock *models.OrphanedBlock) err
 
 	// Create models for balances
 
-	err = poller.IndexAddressBalancesForBlock(orphanedBlock.Number.Int)
+	err = poller.IndexAddressBalancesForBlock(orphanedBlock.Number.Int, orphanedBlock.Hash)
 	if err != nil {
 		return err
 	}

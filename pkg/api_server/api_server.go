@@ -3,6 +3,7 @@ package api_server
 import (
 	"fmt"
 	"getherscan/pkg/models"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -46,6 +47,8 @@ func (apiServer *APIServer) Initialize(dbConnectionString string) error {
 		"/getAddressBalanceByBlockHash/{address}/{blockHash}",
 		apiServer.HandleGetAddressBalanceByBlockHash,
 	).Methods("GET")
+
+	return nil
 }
 
 func (apiServer *APIServer) Serve(port string) {
@@ -53,6 +56,6 @@ func (apiServer *APIServer) Serve(port string) {
 		http.ListenAndServe(
 			fmt.Sprintf(":%s", port),
 			apiServer.Router,
-		)
+		),
 	)
 }

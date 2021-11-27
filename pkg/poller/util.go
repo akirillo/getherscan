@@ -106,7 +106,7 @@ func MakeTransactionModel(transaction *types.Transaction, blockHash []byte) (*mo
 	}, nil
 }
 
-func MakeBalanceModel(balance *big.Int, address []byte) (*models.Balance, error) {
+func MakeBalanceModel(balanceBigInt *big.Int, address, blockHash []byte) (*models.Balance, error) {
 	balance := new(pgtype.Numeric)
 	err := balance.Set(balanceBigInt.String())
 	if err != nil {
@@ -116,7 +116,7 @@ func MakeBalanceModel(balance *big.Int, address []byte) (*models.Balance, error)
 	return &models.Balance{
 		Address:   address,
 		BlockHash: blockHash,
-		Balance:   balance,
+		Balance:   *balance,
 	}, nil
 }
 
@@ -161,7 +161,7 @@ func MakeOrphanedBlockModel(block *types.Block) (*models.OrphanedBlock, error) {
 	}, nil
 }
 
-func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []byte) (*models.Transaction, error) {
+func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []byte) (*models.OrphanedTransaction, error) {
 	message, err := transaction.AsMessage(
 		types.LatestSignerForChainID(transaction.ChainId()),
 		nil,

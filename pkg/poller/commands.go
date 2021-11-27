@@ -20,7 +20,7 @@ func PollAction(cliCtx *cli.Context) error {
 	}
 
 	trackedAddresses := [][]byte{}
-	if cliCtx.Args.Get(3) != "" {
+	if cliCtx.Args().Get(3) != "" {
 		trackedAddressesPath, err := filepath.Abs(cliCtx.Args().Get(3))
 		if err != nil {
 			return err
@@ -49,7 +49,7 @@ func PollAction(cliCtx *cli.Context) error {
 	}
 
 	poller := new(Poller)
-	cancelCtx, err := poller.Initialize(wsRPCEndpoint, dbConnectionString, timeout, trackedAddresses)
+	cancelCtx, err := poller.Initialize(wsRPCEndpoint, dbConnectionString, int(timeout), trackedAddresses)
 	if err != nil {
 		return err
 	}

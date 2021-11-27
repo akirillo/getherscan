@@ -1,7 +1,6 @@
 package api_server
 
 import (
-	"errors"
 	"getherscan/pkg/models"
 	"net/http"
 
@@ -46,7 +45,7 @@ func (apiServer *APIServer) HandleGetBlockByHash(writer http.ResponseWriter, req
 	}
 
 	RespondWithJSON(
-		reques,
+		request,
 		writer,
 		http.StatusOK,
 		block,
@@ -67,7 +66,7 @@ func (apiServer *APIServer) HandleGetBlockByNumber(writer http.ResponseWriter, r
 		return
 	}
 
-	block, err := apiServer.DB.GetBlockByNumber(blockNumber)
+	block, err := apiServer.DB.GetBlockByNumber(*blockNumber)
 	if err != nil {
 		RespondWithError(
 			request,
@@ -79,7 +78,7 @@ func (apiServer *APIServer) HandleGetBlockByNumber(writer http.ResponseWriter, r
 	}
 
 	RespondWithJSON(
-		reques,
+		request,
 		writer,
 		http.StatusOK,
 		block,
@@ -141,7 +140,7 @@ func (apiServer *APIServer) HandleGetAddressBalanceByBlockHash(writer http.Respo
 			request,
 			writer,
 			http.StatusBadRequest,
-			errors.New("Invalid address"),
+			"Invalid address",
 		)
 		return
 	}
