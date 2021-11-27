@@ -3,13 +3,15 @@ package poller
 import (
 	"bytes"
 	"context"
+	"errors"
 	"getherscan/pkg/models"
+	"log"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"gorm.io/gorm"
 )
 
 type Poller struct {
@@ -19,24 +21,23 @@ type Poller struct {
 	TrackedAddresses [][]byte
 }
 
-func (poller *Poller) Initialize(wsRPCEndpoint, dbConnectionString string, timeout int, trackedAddresses [][]byte) (context.CancelFunc, error) {
+func (poller *Poller) Initialize(wsRPCEndpoint, dbConnectionString string, trackedAddresses [][]byte) error {
 	poller.DB = new(models.DB)
 	err := poller.DB.Initialize(dbConnectionString)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	poller.EthClient, err = ethclient.Dial(wsRPCEndpoint)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	pollerContext, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-	poller.Context = pollerContext
+	poller.Context = context.Background()
 
 	poller.TrackedAddresses = trackedAddresses
 
-	return cancel, nil
+	return nil
 }
 
 func (poller *Poller) Poll() error {
@@ -60,13 +61,24 @@ func (poller *Poller) Poll() error {
 }
 
 func (poller *Poller) Index(blockHash common.Hash) error {
-	// Fetch latest indexed block
-	head, err := poller.DB.GetHead()
+	// Fetch full new block
+	block, err := poller.EthClient.BlockByHash(poller.Context, blockHash)
 	if err != nil {
 		return err
 	}
 
-	block, err := poller.EthClient.BlockByHash(poller.Context, blockHash)
+	// Fetch latest indexed block
+	head, err := poller.DB.GetHead()
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// No blocks have been indexed yet
+		err = poller.IndexNewBlock(block)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
@@ -168,6 +180,8 @@ func (poller *Poller) IndexNewBlock(block *types.Block) error {
 		return err
 	}
 
+	log.Printf("Indexed block %s", common.BytesToHash(blockModel.Hash).Hex())
+
 	return nil
 }
 
@@ -223,6 +237,8 @@ func (poller *Poller) IndexNewOrphanedBlock(block *types.Block) error {
 			return err
 		}
 	}
+
+	log.Printf("Indexed orphaned block %s", common.BytesToHash(orphanedBlockModel.Hash).Hex())
 
 	return nil
 }

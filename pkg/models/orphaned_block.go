@@ -13,13 +13,13 @@ type OrphanedBlock struct {
 	TxHash      []byte         `json:"tx_hash"`
 	ReceiptHash []byte         `json:"receipt_hash"`
 	Bloom       []byte         `json:"bloom"`
-	Difficulty  pgtype.Numeric `json:"difficulty"`
-	Number      pgtype.Numeric `json:"number"`
+	Difficulty  pgtype.Numeric `json:"difficulty" gorm:"type:numeric"`
+	Number      pgtype.Numeric `json:"number" gorm:"type:numeric"`
 	GasLimit    uint64         `json:"gas_limit"`
 	GasUsed     uint64         `json:"gas_used"`
 	Time        uint64         `json:"time"`
 	Extra       []byte         `json:"extra"`
 	MixDigest   []byte         `json:"mix_digest"`
-	Nonce       uint64         `json:"nonce"`
-	BaseFee     pgtype.Numeric `json:"base_fee"`
+	Nonce       pgtype.Numeric `json:"nonce" gorm:"type:numeric"`
+	BaseFee     pgtype.Numeric `json:"base_fee" gorm:"type:numeric"`
 }

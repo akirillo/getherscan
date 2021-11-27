@@ -1,6 +1,9 @@
 package models
 
-import "github.com/jackc/pgtype"
+import (
+	"github.com/jackc/pgtype"
+	"gorm.io/gorm"
+)
 
 type Block struct {
 	Hash []byte `json:"hash" gorm:"primaryKey"`
@@ -13,22 +16,26 @@ type Block struct {
 	TxHash      []byte         `json:"tx_hash"`
 	ReceiptHash []byte         `json:"receipt_hash"`
 	Bloom       []byte         `json:"bloom"`
-	Difficulty  pgtype.Numeric `json:"difficulty"`
-	Number      pgtype.Numeric `json:"number" gorm:"index:,sort:desc"`
+	Difficulty  pgtype.Numeric `json:"difficulty" gorm:"type:numeric"`
+	Number      pgtype.Numeric `json:"number" gorm:"index:,sort:desc;type:numeric"`
 	GasLimit    uint64         `json:"gas_limit"`
 	GasUsed     uint64         `json:"gas_used"`
 	Time        uint64         `json:"time"`
 	Extra       []byte         `json:"extra"`
 	MixDigest   []byte         `json:"mix_digest"`
-	Nonce       uint64         `json:"nonce"`
-	BaseFee     pgtype.Numeric `json:"base_fee"`
+	Nonce       pgtype.Numeric `json:"nonce" gorm:"type:numeric"`
+	BaseFee     pgtype.Numeric `json:"base_fee" gorm:"type:numeric"`
 }
 
 func (db *DB) GetHead() (*Block, error) {
 	var head Block
-	err := db.Order("number desc").Limit(1).Find(&head).Error
-	if err != nil {
-		return nil, err
+	result := db.Order("number desc").Limit(1).Find(&head)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
 	}
 
 	return &head, nil

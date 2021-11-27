@@ -21,6 +21,12 @@ func MakeBlockModel(block *types.Block) (*models.Block, error) {
 		return nil, err
 	}
 
+	blockNonce := new(pgtype.Numeric)
+	err = blockNonce.Set(block.Nonce())
+	if err != nil {
+		return nil, err
+	}
+
 	blockBaseFee := new(pgtype.Numeric)
 	err = blockBaseFee.Set(block.BaseFee().String())
 	if err != nil {
@@ -44,7 +50,7 @@ func MakeBlockModel(block *types.Block) (*models.Block, error) {
 		Time:        block.Time(),
 		Extra:       block.Extra(),
 		MixDigest:   block.MixDigest().Bytes(),
-		Nonce:       block.Nonce(),
+		Nonce:       *blockNonce,
 		BaseFee:     *blockBaseFee,
 	}, nil
 }
@@ -88,6 +94,12 @@ func MakeTransactionModel(transaction *types.Transaction, blockHash []byte) (*mo
 		return nil, err
 	}
 
+	transactionNonce := new(pgtype.Numeric)
+	err = transactionNonce.Set(transaction.Nonce())
+	if err != nil {
+		return nil, err
+	}
+
 	return &models.Transaction{
 		Hash:      transaction.Hash().Bytes(),
 		Size:      uint64(transaction.Size()),
@@ -100,7 +112,7 @@ func MakeTransactionModel(transaction *types.Transaction, blockHash []byte) (*mo
 		GasTipCap: *transactionGasTipCap,
 		GasFeeCap: *transactionGasFeeCap,
 		Value:     *transactionValue,
-		Nonce:     transaction.Nonce(),
+		Nonce:     *transactionNonce,
 		To:        transaction.To().Bytes(),
 		BlockHash: blockHash,
 	}, nil
@@ -133,6 +145,12 @@ func MakeOrphanedBlockModel(block *types.Block) (*models.OrphanedBlock, error) {
 		return nil, err
 	}
 
+	orphanedBlockNonce := new(pgtype.Numeric)
+	err = orphanedBlockNonce.Set(block.Nonce())
+	if err != nil {
+		return nil, err
+	}
+
 	orphanedBlockBaseFee := new(pgtype.Numeric)
 	err = orphanedBlockBaseFee.Set(block.BaseFee().String())
 	if err != nil {
@@ -156,7 +174,7 @@ func MakeOrphanedBlockModel(block *types.Block) (*models.OrphanedBlock, error) {
 		Time:        block.Time(),
 		Extra:       block.Extra(),
 		MixDigest:   block.MixDigest().Bytes(),
-		Nonce:       block.Nonce(),
+		Nonce:       *orphanedBlockNonce,
 		BaseFee:     *orphanedBlockBaseFee,
 	}, nil
 }
@@ -200,6 +218,12 @@ func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []by
 		return nil, err
 	}
 
+	orphanedTransactionNonce := new(pgtype.Numeric)
+	err = orphanedTransactionNonce.Set(transaction.Nonce())
+	if err != nil {
+		return nil, err
+	}
+
 	return &models.OrphanedTransaction{
 		Hash:              transaction.Hash().Bytes(),
 		Size:              uint64(transaction.Size()),
@@ -212,7 +236,7 @@ func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []by
 		GasTipCap:         *orphanedTransactionGasTipCap,
 		GasFeeCap:         *orphanedTransactionGasFeeCap,
 		Value:             *orphanedTransactionValue,
-		Nonce:             transaction.Nonce(),
+		Nonce:             *orphanedTransactionNonce,
 		To:                transaction.To().Bytes(),
 		OrphanedBlockHash: blockHash,
 	}, nil

@@ -3,25 +3,25 @@ package poller
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
-	"strconv"
+	"syscall"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli"
 )
 
 func PollAction(cliCtx *cli.Context) error {
+	var err error
+
 	wsRPCEndpoint := cliCtx.Args().Get(0)
 	dbConnectionString := cliCtx.Args().Get(1)
-	timeout, err := strconv.ParseInt(cliCtx.Args().Get(2), 10, 0)
-	if err != nil {
-		return err
-	}
 
 	trackedAddresses := [][]byte{}
-	if cliCtx.Args().Get(3) != "" {
-		trackedAddressesPath, err := filepath.Abs(cliCtx.Args().Get(3))
+	if cliCtx.Args().Get(2) != "" {
+		trackedAddressesPath, err := filepath.Abs(cliCtx.Args().Get(2))
 		if err != nil {
 			return err
 		}
@@ -49,23 +49,27 @@ func PollAction(cliCtx *cli.Context) error {
 	}
 
 	poller := new(Poller)
-	cancelCtx, err := poller.Initialize(wsRPCEndpoint, dbConnectionString, int(timeout), trackedAddresses)
+	err = poller.Initialize(wsRPCEndpoint, dbConnectionString, trackedAddresses)
 	if err != nil {
 		return err
 	}
-	defer cancelCtx()
 
-	err = poller.Poll()
-	if err != nil {
-		return err
-	}
+	go poller.Poll()
+
+	log.Println("Listening for new blocks...")
+
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGTERM)
+	signal.Notify(signalChannel, syscall.SIGINT)
+
+	<-signalChannel
 
 	return nil
 }
 
 var PollCommand = cli.Command{
 	Name:      "poll",
-	Usage:     "Listens for new blocks on the provided websocket RPC endpoint and indexes them to the provided PostgreSQL connection, using the provided timeout. Optionally accepts a JSON array of hex addresses for which to index balances.",
-	ArgsUsage: "Provide a websocket RPC endpoint, a PostgreSQL connection string, a timeout denoted in seconds, and, optionally, a path to a JSON file containing an array of hex addresses to track.",
+	Usage:     "Listens for new blocks on the provided websocket RPC endpoint and indexes them to the provided PostgreSQL connection. Optionally accepts a JSON array of hex addresses for which to index balances.",
+	ArgsUsage: "Provide a websocket RPC endpoint, a PostgreSQL connection string, and, optionally, a path to a JSON file containing an array of hex addresses to track.",
 	Action:    PollAction,
 }
