@@ -31,7 +31,7 @@ func (apiServer *APIServer) HandleGetHead(writer http.ResponseWriter, request *h
 
 func (apiServer *APIServer) HandleGetBlockByHash(writer http.ResponseWriter, request *http.Request) {
 	routeVars := mux.Vars(request)
-	blockHash := common.FromHex(routeVars["blockHash"])
+	blockHash := routeVars["blockHash"]
 
 	block, err := apiServer.DB.GetBlockByHash(blockHash)
 	if err != nil {
@@ -92,11 +92,11 @@ type GetBlocksByTransactionHashPayload struct {
 
 func (apiServer *APIServer) HandleGetBlocksByTransactionHash(writer http.ResponseWriter, request *http.Request) {
 	routeVars := mux.Vars(request)
-	transactionHash := common.FromHex(routeVars["transactionHash"])
+	transactionHash := routeVars["transactionHash"]
 
 	payload := new(GetBlocksByTransactionHashPayload)
 
-	transaction, err := apiServer.DB.GetTransactionByHash(transactionHash)
+	transaction, err := apiServer.DB.GetTransactionByHash(transactionHash, true)
 	if err != nil {
 		RespondWithError(
 			request,
@@ -133,6 +133,29 @@ func (apiServer *APIServer) HandleGetBlocksByTransactionHash(writer http.Respons
 	)
 }
 
+func (apiServer *APIServer) HandleGetTransactionByHash(writer http.ResponseWriter, request *http.Request) {
+	routeVars := mux.Vars(request)
+	transactionHash := routeVars["transactionHash"]
+
+	transaction, err := apiServer.DB.GetTransactionByHash(transactionHash, false)
+	if err != nil {
+		RespondWithError(
+			request,
+			writer,
+			http.StatusBadRequest,
+			err.Error(),
+		)
+		return
+	}
+
+	RespondWithJSON(
+		request,
+		writer,
+		http.StatusOK,
+		transaction,
+	)
+}
+
 func (apiServer *APIServer) HandleGetAddressBalanceByBlockHash(writer http.ResponseWriter, request *http.Request) {
 	routeVars := mux.Vars(request)
 	if !common.IsHexAddress(routeVars["address"]) {
@@ -145,8 +168,8 @@ func (apiServer *APIServer) HandleGetAddressBalanceByBlockHash(writer http.Respo
 		return
 	}
 
-	address := common.FromHex(routeVars["address"])
-	blockHash := common.FromHex(routeVars["blockHash"])
+	address := routeVars["address"]
+	blockHash := routeVars["blockHash"]
 
 	balance, err := apiServer.DB.GetAddressBalanceByBlockHash(address, blockHash)
 	if err != nil {

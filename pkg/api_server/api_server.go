@@ -44,6 +44,11 @@ func (apiServer *APIServer) Initialize(dbConnectionString string) error {
 	).Methods("GET")
 
 	apiServer.Router.HandleFunc(
+		"/getTransactionByHash/{transactionHash}",
+		apiServer.HandleGetTransactionByHash,
+	).Methods("GET")
+
+	apiServer.Router.HandleFunc(
 		"/getAddressBalanceByBlockHash/{address}/{blockHash}",
 		apiServer.HandleGetAddressBalanceByBlockHash,
 	).Methods("GET")

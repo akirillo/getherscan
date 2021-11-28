@@ -34,14 +34,14 @@ func MakeBlockModel(block *types.Block) (*models.Block, error) {
 	}
 
 	return &models.Block{
-		Hash:        block.Hash().Bytes(),
+		Hash:        block.Hash().Hex(),
 		Size:        uint64(block.Size()),
-		ParentHash:  block.ParentHash().Bytes(),
-		UncleHash:   block.UncleHash().Bytes(),
-		Coinbase:    block.Coinbase().Bytes(),
-		Root:        block.Root().Bytes(),
-		TxHash:      block.TxHash().Bytes(),
-		ReceiptHash: block.ReceiptHash().Bytes(),
+		ParentHash:  block.ParentHash().Hex(),
+		UncleHash:   block.UncleHash().Hex(),
+		Coinbase:    block.Coinbase().Hex(),
+		Root:        block.Root().Hex(),
+		TxHash:      block.TxHash().Hex(),
+		ReceiptHash: block.ReceiptHash().Hex(),
 		Bloom:       block.Bloom().Bytes(),
 		Difficulty:  *blockDifficulty,
 		Number:      *blockNumber,
@@ -49,13 +49,13 @@ func MakeBlockModel(block *types.Block) (*models.Block, error) {
 		GasUsed:     block.GasUsed(),
 		Time:        block.Time(),
 		Extra:       block.Extra(),
-		MixDigest:   block.MixDigest().Bytes(),
+		MixDigest:   block.MixDigest().Hex(),
 		Nonce:       *blockNonce,
 		BaseFee:     *blockBaseFee,
 	}, nil
 }
 
-func MakeTransactionModel(transaction *types.Transaction, blockHash []byte) (*models.Transaction, error) {
+func MakeTransactionModel(transaction *types.Transaction, blockHash string) (*models.Transaction, error) {
 	message, err := transaction.AsMessage(
 		types.LatestSignerForChainID(transaction.ChainId()),
 		nil,
@@ -100,10 +100,16 @@ func MakeTransactionModel(transaction *types.Transaction, blockHash []byte) (*mo
 		return nil, err
 	}
 
+	transactionTo := ""
+	transactionToAddress := transaction.To()
+	if transactionToAddress != nil {
+		transactionTo = transactionToAddress.Hex()
+	}
+
 	return &models.Transaction{
-		Hash:      transaction.Hash().Bytes(),
+		Hash:      transaction.Hash().Hex(),
 		Size:      uint64(transaction.Size()),
-		From:      message.From().Bytes(),
+		From:      message.From().Hex(),
 		Type:      byte(transaction.Type()),
 		ChainID:   *transactionChainID,
 		Data:      transaction.Data(),
@@ -113,12 +119,12 @@ func MakeTransactionModel(transaction *types.Transaction, blockHash []byte) (*mo
 		GasFeeCap: *transactionGasFeeCap,
 		Value:     *transactionValue,
 		Nonce:     *transactionNonce,
-		To:        transaction.To().Bytes(),
+		To:        transactionTo,
 		BlockHash: blockHash,
 	}, nil
 }
 
-func MakeBalanceModel(balanceBigInt *big.Int, address, blockHash []byte) (*models.Balance, error) {
+func MakeBalanceModel(balanceBigInt *big.Int, address, blockHash string) (*models.Balance, error) {
 	balance := new(pgtype.Numeric)
 	err := balance.Set(balanceBigInt.String())
 	if err != nil {
@@ -158,14 +164,14 @@ func MakeOrphanedBlockModel(block *types.Block) (*models.OrphanedBlock, error) {
 	}
 
 	return &models.OrphanedBlock{
-		Hash:        block.Hash().Bytes(),
+		Hash:        block.Hash().Hex(),
 		Size:        uint64(block.Size()),
-		ParentHash:  block.ParentHash().Bytes(),
-		UncleHash:   block.UncleHash().Bytes(),
-		Coinbase:    block.Coinbase().Bytes(),
-		Root:        block.Root().Bytes(),
-		TxHash:      block.TxHash().Bytes(),
-		ReceiptHash: block.ReceiptHash().Bytes(),
+		ParentHash:  block.ParentHash().Hex(),
+		UncleHash:   block.UncleHash().Hex(),
+		Coinbase:    block.Coinbase().Hex(),
+		Root:        block.Root().Hex(),
+		TxHash:      block.TxHash().Hex(),
+		ReceiptHash: block.ReceiptHash().Hex(),
 		Bloom:       block.Bloom().Bytes(),
 		Difficulty:  *orphanedBlockDifficulty,
 		Number:      *orphanedBlockNumber,
@@ -173,13 +179,13 @@ func MakeOrphanedBlockModel(block *types.Block) (*models.OrphanedBlock, error) {
 		GasUsed:     block.GasUsed(),
 		Time:        block.Time(),
 		Extra:       block.Extra(),
-		MixDigest:   block.MixDigest().Bytes(),
+		MixDigest:   block.MixDigest().Hex(),
 		Nonce:       *orphanedBlockNonce,
 		BaseFee:     *orphanedBlockBaseFee,
 	}, nil
 }
 
-func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []byte) (*models.OrphanedTransaction, error) {
+func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash string) (*models.OrphanedTransaction, error) {
 	message, err := transaction.AsMessage(
 		types.LatestSignerForChainID(transaction.ChainId()),
 		nil,
@@ -225,9 +231,9 @@ func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []by
 	}
 
 	return &models.OrphanedTransaction{
-		Hash:              transaction.Hash().Bytes(),
+		Hash:              transaction.Hash().Hex(),
 		Size:              uint64(transaction.Size()),
-		From:              message.From().Bytes(),
+		From:              message.From().Hex(),
 		Type:              byte(transaction.Type()),
 		ChainID:           *orphanedTransactionChainID,
 		Data:              transaction.Data(),
@@ -237,7 +243,7 @@ func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash []by
 		GasFeeCap:         *orphanedTransactionGasFeeCap,
 		Value:             *orphanedTransactionValue,
 		Nonce:             *orphanedTransactionNonce,
-		To:                transaction.To().Bytes(),
+		To:                transaction.To().Hex(),
 		OrphanedBlockHash: blockHash,
 	}, nil
 }

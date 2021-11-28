@@ -6,15 +6,15 @@ import (
 )
 
 type Block struct {
-	Hash []byte `json:"hash" gorm:"primaryKey"`
+	Hash string `json:"hash" gorm:"primaryKey"`
 	Size uint64 `json:"size"`
 	// Header fields
-	ParentHash  []byte         `json:"parent_hash"`
-	UncleHash   []byte         `json:"uncle_hash"`
-	Coinbase    []byte         `json:"coinbase"`
-	Root        []byte         `json:"root"`
-	TxHash      []byte         `json:"tx_hash"`
-	ReceiptHash []byte         `json:"receipt_hash"`
+	ParentHash  string         `json:"parent_hash"`
+	UncleHash   string         `json:"uncle_hash"`
+	Coinbase    string         `json:"coinbase"`
+	Root        string         `json:"root"`
+	TxHash      string         `json:"tx_hash"`
+	ReceiptHash string         `json:"receipt_hash"`
 	Bloom       []byte         `json:"bloom"`
 	Difficulty  pgtype.Numeric `json:"difficulty" gorm:"type:numeric"`
 	Number      pgtype.Numeric `json:"number" gorm:"index:,sort:desc;type:numeric"`
@@ -22,7 +22,7 @@ type Block struct {
 	GasUsed     uint64         `json:"gas_used"`
 	Time        uint64         `json:"time"`
 	Extra       []byte         `json:"extra"`
-	MixDigest   []byte         `json:"mix_digest"`
+	MixDigest   string         `json:"mix_digest"`
 	Nonce       pgtype.Numeric `json:"nonce" gorm:"type:numeric"`
 	BaseFee     pgtype.Numeric `json:"base_fee" gorm:"type:numeric"`
 }
@@ -41,7 +41,7 @@ func (db *DB) GetHead() (*Block, error) {
 	return &head, nil
 }
 
-func (db *DB) GetBlockByHash(blockHash []byte) (Block, error) {
+func (db *DB) GetBlockByHash(blockHash string) (Block, error) {
 	var block Block
 	return block, db.Where("hash = ?", blockHash).First(&block).Error
 }

@@ -19,7 +19,7 @@ func PollAction(cliCtx *cli.Context) error {
 	wsRPCEndpoint := cliCtx.Args().Get(0)
 	dbConnectionString := cliCtx.Args().Get(1)
 
-	trackedAddresses := [][]byte{}
+	trackedAddresses := []string{}
 	if cliCtx.Args().Get(2) != "" {
 		trackedAddressesPath, err := filepath.Abs(cliCtx.Args().Get(2))
 		if err != nil {
@@ -32,19 +32,15 @@ func PollAction(cliCtx *cli.Context) error {
 		}
 		defer trackedAddressesFile.Close()
 
-		var trackedAddressHexStrings []string
-		err = json.NewDecoder(trackedAddressesFile).Decode(&trackedAddressHexStrings)
+		err = json.NewDecoder(trackedAddressesFile).Decode(&trackedAddresses)
 		if err != nil {
 			return err
 		}
 
-		trackedAddresses = make([][]byte, len(trackedAddressHexStrings))
-		for i, trackedAddressHexString := range trackedAddressHexStrings {
-			if !common.IsHexAddress(trackedAddressHexString) {
+		for _, trackedAddress := range trackedAddresses {
+			if !common.IsHexAddress(trackedAddress) {
 				return errors.New("Addresses to track are improperly formatted")
 			}
-
-			trackedAddresses[i] = common.FromHex(trackedAddressHexString)
 		}
 	}
 
