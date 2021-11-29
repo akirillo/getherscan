@@ -41,12 +41,12 @@ func (db *DB) GetHead() (*Block, error) {
 	return &head, nil
 }
 
-func (db *DB) GetBlockByHash(blockHash string) (Block, error) {
+func (db *DB) GetBlockByHash(blockHash string) (*Block, error) {
 	var block Block
-	return block, db.Where("hash = ?", blockHash).First(&block).Error
+	return &block, db.Where("hash = ?", blockHash).First(&block).Error
 }
 
-func (db *DB) GetBlockByNumber(blockNumber pgtype.Numeric) (Block, error) {
+func (db *DB) GetBlockByNumber(blockNumber pgtype.Numeric) (*Block, error) {
 	var block Block
-	return block, db.Where("number = ?", blockNumber).First(&block).Error
+	return &block, db.Where("number = ?", blockNumber).First(&block).Error
 }

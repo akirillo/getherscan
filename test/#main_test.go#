@@ -18,6 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// NOTE: ALL TESTS ASSUME THEY ARE BEING RUN FROM /test DIR (IMPORTANT
+// FOR FETCHING TESTDATA FILES)
+
 var testPoller *poller.Poller
 var testAPIServer *api_server.APIServer
 

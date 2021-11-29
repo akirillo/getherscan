@@ -31,3 +31,8 @@ func (db *DB) GetOrphanedTransactionsByHash(orphanedTransactionHash string) ([]O
 	var orphanedTransactions []OrphanedTransaction
 	return orphanedTransactions, db.Preload("OrphanedBlock").Where("hash = ?", orphanedTransactionHash).Find(&orphanedTransactions).Error
 }
+
+func (db *DB) GetOrphanedTransactionByHashAndBlockHash(orphanedTransactionHash, orphanedBlockHash string) (*OrphanedTransaction, error) {
+	var orphanedTransaction OrphanedTransaction
+	return &orphanedTransaction, db.Where("hash = ? AND orphaned_block_hash = ?", orphanedTransactionHash, orphanedBlockHash).First(&orphanedTransaction).Error
+}

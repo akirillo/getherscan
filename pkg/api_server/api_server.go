@@ -10,11 +10,12 @@ import (
 )
 
 type APIServer struct {
+	Server *http.Server
 	Router *mux.Router
 	DB     *models.DB
 }
 
-func (apiServer *APIServer) Initialize(dbConnectionString string) error {
+func (apiServer *APIServer) Initialize(dbConnectionString, port string) error {
 	apiServer.DB = new(models.DB)
 	err := apiServer.DB.Initialize(dbConnectionString)
 	if err != nil {
@@ -22,6 +23,11 @@ func (apiServer *APIServer) Initialize(dbConnectionString string) error {
 	}
 
 	apiServer.Router = mux.NewRouter()
+
+	apiServer.Server = &http.Server{
+		Addr:    fmt.Sprintf(":%s", port),
+		Handler: apiServer.Router,
+	}
 
 	apiServer.Router.HandleFunc(
 		"/getHead",
@@ -56,11 +62,6 @@ func (apiServer *APIServer) Initialize(dbConnectionString string) error {
 	return nil
 }
 
-func (apiServer *APIServer) Serve(port string) {
-	log.Fatal(
-		http.ListenAndServe(
-			fmt.Sprintf(":%s", port),
-			apiServer.Router,
-		),
-	)
+func (apiServer *APIServer) Serve() {
+	log.Fatal(apiServer.Server.ListenAndServe())
 }

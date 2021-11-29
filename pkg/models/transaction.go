@@ -27,12 +27,12 @@ func (db *DB) GetTransactionsForBlockHash(blockHash string) ([]Transaction, erro
 	return transactions, db.Where("block_hash = ?", blockHash).Find(&transactions).Error
 }
 
-func (db *DB) GetTransactionByHash(transactionHash string, includeBlock bool) (Transaction, error) {
+func (db *DB) GetTransactionByHash(transactionHash string, includeBlock bool) (*Transaction, error) {
 	var transaction Transaction
 
 	if includeBlock {
-		return transaction, db.Preload("Block").Where("hash = ?", transactionHash).First(&transaction).Error
+		return &transaction, db.Preload("Block").Where("hash = ?", transactionHash).First(&transaction).Error
 	}
 
-	return transaction, db.Where("hash = ?", transactionHash).First(&transaction).Error
+	return &transaction, db.Where("hash = ?", transactionHash).First(&transaction).Error
 }

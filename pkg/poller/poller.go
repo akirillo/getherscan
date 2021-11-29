@@ -96,12 +96,12 @@ func (poller *Poller) Index(block *types.Block) error {
 			return err
 		}
 
-		currentTotalDifficulty, err := poller.GetTotalCanonicalDifficultySince(*canonicalAncestorHash, head)
+		currentTotalDifficulty, err := poller.GetTotalCanonicalDifficultySince(canonicalAncestorHash, head)
 		if err != nil {
 			return err
 		}
 
-		newTotalDifficulty, err := poller.GetTotalOrphanedDifficultySince(*canonicalAncestorHash, orphanedBlockModel)
+		newTotalDifficulty, err := poller.GetTotalOrphanedDifficultySince(canonicalAncestorHash, orphanedBlockModel)
 		if err != nil {
 			return err
 		}
@@ -110,7 +110,7 @@ func (poller *Poller) Index(block *types.Block) error {
 			// (Effective) total difficulty of new block
 			// is higher than that of local head, reorg
 
-			err = poller.Reorg(block, head, *canonicalAncestorHash)
+			err = poller.Reorg(block, head, canonicalAncestorHash)
 			if err != nil {
 				return err
 			}
@@ -122,7 +122,7 @@ func (poller *Poller) Index(block *types.Block) error {
 			// once it reaches the same block number),
 			// reorg
 
-			err = poller.Reorg(block, head, *canonicalAncestorHash)
+			err = poller.Reorg(block, head, canonicalAncestorHash)
 			if err != nil {
 				return err
 			}
@@ -242,30 +242,30 @@ func (poller *Poller) IndexNewOrphanedBlock(block *types.Block) error {
 
 // Assumes that the canonical ancestor of the associated orphaned
 // block has been previously indexed
-func (poller *Poller) FindCanonicalAncestorHash(orphanedBlockParentHash string) (*string, error) {
+func (poller *Poller) FindCanonicalAncestorHash(orphanedBlockParentHash string) (string, error) {
 	var err error
+	var orphanedBlock *models.OrphanedBlock
 
 	// Step backwards through orphaned fork until an orphaned
 	// parent can't be found
 
 	for {
-		var tempOrphanedBlock models.OrphanedBlock
-		err = poller.DB.Where("hash = ?", orphanedBlockParentHash).First(&tempOrphanedBlock).Error
+		orphanedBlock, err = poller.DB.GetOrphanedBlockByHash(orphanedBlockParentHash)
 		if err != nil {
 			break
 		}
 
-		orphanedBlockParentHash = tempOrphanedBlock.ParentHash
+		orphanedBlockParentHash = orphanedBlock.ParentHash
 	}
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Could not find orphaned block matching
 		// orphanedBlockParentHash, parent block must
 		// be canonical
-		return &orphanedBlockParentHash, nil
+		return orphanedBlockParentHash, nil
 	}
 
-	return nil, err
+	return "", err
 }
 
 func (poller *Poller) GetTotalCanonicalDifficultySince(ancestorHash string, block *models.Block) (*big.Int, error) {
@@ -277,12 +277,10 @@ func (poller *Poller) GetTotalCanonicalDifficultySince(ancestorHash string, bloc
 	for currentBlock := block; currentBlock.Hash != ancestorHash; {
 		totalDifficulty = new(big.Int).Add(totalDifficulty, currentBlock.Difficulty.Int)
 
-		var tempCurrentBlock models.Block
-		err = poller.DB.Where("hash = ?", currentBlock.ParentHash).First(&tempCurrentBlock).Error
+		currentBlock, err = poller.DB.GetBlockByHash(currentBlock.ParentHash)
 		if err != nil {
 			return nil, err
 		}
-		currentBlock = &tempCurrentBlock
 	}
 
 	return totalDifficulty, nil
@@ -295,12 +293,10 @@ func (poller *Poller) GetTotalOrphanedDifficultySince(ancestorHash string, orpha
 	// Starting with the given orphaned block, add difficulties up
 	// to (but excluding) the block with ancestorHash
 	for currentOrphanedBlock := orphanedBlock; currentOrphanedBlock.ParentHash != ancestorHash; {
-		var tempCurrentOrphanedBlock models.OrphanedBlock
-		err = poller.DB.Where("hash = ?", currentOrphanedBlock.ParentHash).First(&tempCurrentOrphanedBlock).Error
+		currentOrphanedBlock, err = poller.DB.GetOrphanedBlockByHash(currentOrphanedBlock.ParentHash)
 		if err != nil {
 			return nil, err
 		}
-		currentOrphanedBlock = &tempCurrentOrphanedBlock
 
 		totalDifficulty = new(big.Int).Add(totalDifficulty, currentOrphanedBlock.Difficulty.Int)
 	}
@@ -321,12 +317,10 @@ func (poller *Poller) Reorg(newHead *types.Block, oldHead *models.Block, canonic
 			return err
 		}
 
-		var tempCurrentBlock models.Block
-		err = poller.DB.Where("hash = ?", currentBlock.ParentHash).First(&tempCurrentBlock).Error
+		currentBlock, err = poller.DB.GetBlockByHash(currentBlock.ParentHash)
 		if err != nil {
 			return err
 		}
-		currentBlock = &tempCurrentBlock
 	}
 
 	// Index newHead, then for each block from (but excluding)
@@ -340,28 +334,25 @@ func (poller *Poller) Reorg(newHead *types.Block, oldHead *models.Block, canonic
 
 	// If reorg depth > 1
 	if newHead.ParentHash().Hex() != canonicalAncestorHash {
-		var currentBlock models.OrphanedBlock
-		err = poller.DB.Where("hash = ?", newHead.ParentHash().Hex()).First(&currentBlock).Error
+		currentOrphanedBlock, err := poller.DB.GetOrphanedBlockByHash(newHead.ParentHash().Hex())
 		if err != nil {
 			return err
 		}
 
 		for {
-			err = poller.CanonicalizeBlock(&currentBlock)
+			err = poller.CanonicalizeBlock(currentOrphanedBlock)
 			if err != nil {
 				return err
 			}
 
-			if currentBlock.ParentHash == canonicalAncestorHash {
+			if currentOrphanedBlock.ParentHash == canonicalAncestorHash {
 				break
 			}
 
-			var tempCurrentBlock models.OrphanedBlock
-			err = poller.DB.Where("hash = ?", currentBlock.ParentHash).First(&tempCurrentBlock).Error
+			currentOrphanedBlock, err = poller.DB.GetOrphanedBlockByHash(currentOrphanedBlock.ParentHash)
 			if err != nil {
 				return err
 			}
-			currentBlock = tempCurrentBlock
 		}
 	}
 

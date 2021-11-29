@@ -10,7 +10,7 @@ type Balance struct {
 	Balance pgtype.Numeric `json:"balance" gorm:"type:numeric"`
 }
 
-func (db *DB) GetAddressBalanceByBlockHash(address, blockHash string) (Balance, error) {
+func (db *DB) GetAddressBalanceByBlockHash(address, blockHash string) (*Balance, error) {
 	var balance Balance
-	return balance, db.Where("address = ? AND block_hash = ?", address, blockHash).First(&balance).Error
+	return &balance, db.Where("address = ? AND block_hash = ?", address, blockHash).First(&balance).Error
 }

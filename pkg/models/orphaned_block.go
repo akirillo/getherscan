@@ -23,3 +23,13 @@ type OrphanedBlock struct {
 	Nonce       pgtype.Numeric `json:"nonce" gorm:"type:numeric"`
 	BaseFee     pgtype.Numeric `json:"base_fee" gorm:"type:numeric"`
 }
+
+func (db *DB) GetOrphanedBlockByHash(orphanedBlockHash string) (*OrphanedBlock, error) {
+	var orphanedBlock OrphanedBlock
+	return &orphanedBlock, db.Where("hash = ?", orphanedBlockHash).First(&orphanedBlock).Error
+}
+
+func (db *DB) GetAllOrphanedBlocks() ([]OrphanedBlock, error) {
+	var orphanedBlocks []OrphanedBlock
+	return orphanedBlocks, db.Find(&orphanedBlocks).Error
+}
