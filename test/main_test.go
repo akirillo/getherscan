@@ -532,7 +532,3 @@ func TestGetAddressBalanceByBlockHash(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-// General TODOs:
-// - Test edge cases
-// - Fuzz testing
