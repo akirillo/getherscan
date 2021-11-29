@@ -1,15 +1,11 @@
 package poller
 
 import (
-	"encoding/json"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli"
 )
 
@@ -21,26 +17,9 @@ func PollAction(cliCtx *cli.Context) error {
 
 	trackedAddresses := []string{}
 	if cliCtx.Args().Get(2) != "" {
-		trackedAddressesPath, err := filepath.Abs(cliCtx.Args().Get(2))
+		trackedAddresses, err = GetTrackedAddressesFromFile(cliCtx.Args().Get(2))
 		if err != nil {
 			return err
-		}
-
-		trackedAddressesFile, err := os.Open(trackedAddressesPath)
-		if err != nil {
-			return err
-		}
-		defer trackedAddressesFile.Close()
-
-		err = json.NewDecoder(trackedAddressesFile).Decode(&trackedAddresses)
-		if err != nil {
-			return err
-		}
-
-		for _, trackedAddress := range trackedAddresses {
-			if !common.IsHexAddress(trackedAddress) {
-				return errors.New("Addresses to track are improperly formatted")
-			}
 		}
 	}
 

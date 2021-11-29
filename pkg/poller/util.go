@@ -1,9 +1,14 @@
 package poller
 
 import (
+	"encoding/json"
+	"errors"
 	"getherscan/pkg/models"
 	"math/big"
+	"os"
+	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgtype"
 )
@@ -246,4 +251,31 @@ func MakeOrphanedTransactionModel(transaction *types.Transaction, blockHash stri
 		To:                transaction.To().Hex(),
 		OrphanedBlockHash: blockHash,
 	}, nil
+}
+
+func GetTrackedAddressesFromFile(trackedAddressesFilePath string) ([]string, error) {
+	absTrackedAddressesFilePath, err := filepath.Abs(trackedAddressesFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	trackedAddressesFile, err := os.Open(absTrackedAddressesFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer trackedAddressesFile.Close()
+
+	var trackedAddresses []string
+	err = json.NewDecoder(trackedAddressesFile).Decode(&trackedAddresses)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, trackedAddress := range trackedAddresses {
+		if !common.IsHexAddress(trackedAddress) {
+			return nil, errors.New("Addresses to track are improperly formatted")
+		}
+	}
+
+	return trackedAddresses, nil
 }

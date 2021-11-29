@@ -33,3 +33,39 @@ func (db *DB) InitializeModels() error {
 		&Balance{},
 	)
 }
+
+func (db *DB) ClearDB() error {
+	tempDB := db.Session(&gorm.Session{AllowGlobalUpdate: true})
+
+	// Delete transactions
+	err := tempDB.Unscoped().Delete(&Transaction{}).Error
+	if err != nil {
+		return err
+	}
+
+	// Delete balances
+	err = tempDB.Unscoped().Delete(&Balance{}).Error
+	if err != nil {
+		return err
+	}
+
+	// Delete blocks
+	err = tempDB.Unscoped().Delete(&Block{}).Error
+	if err != nil {
+		return err
+	}
+
+	// Delete orphaned transactions
+	err = tempDB.Unscoped().Delete(&OrphanedTransaction{}).Error
+	if err != nil {
+		return err
+	}
+
+	// Delete orphaned blocks
+	err = tempDB.Unscoped().Delete(&OrphanedBlock{}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

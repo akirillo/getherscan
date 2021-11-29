@@ -51,7 +51,13 @@ func (poller *Poller) Poll() error {
 		case err := <-subscription.Err():
 			return err
 		case header := <-headerChannel:
-			err = poller.Index(header.Hash())
+			// Fetch full new block
+			block, err := poller.EthClient.BlockByHash(poller.Context, header.Hash())
+			if err != nil {
+				return err
+			}
+
+			err = poller.Index(block)
 			if err != nil {
 				return err
 			}
@@ -59,13 +65,7 @@ func (poller *Poller) Poll() error {
 	}
 }
 
-func (poller *Poller) Index(blockHash common.Hash) error {
-	// Fetch full new block
-	block, err := poller.EthClient.BlockByHash(poller.Context, blockHash)
-	if err != nil {
-		return err
-	}
-
+func (poller *Poller) Index(block *types.Block) error {
 	// Fetch latest indexed block
 	head, err := poller.DB.GetHead()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -248,9 +248,13 @@ func (poller *Poller) FindCanonicalAncestorHash(orphanedBlockParentHash string) 
 	// Step backwards through orphaned fork until an orphaned
 	// parent can't be found
 
-	for err == nil {
+	for {
 		var tempOrphanedBlock models.OrphanedBlock
 		err = poller.DB.Where("hash = ?", orphanedBlockParentHash).First(&tempOrphanedBlock).Error
+		if err != nil {
+			break
+		}
+
 		orphanedBlockParentHash = tempOrphanedBlock.ParentHash
 	}
 
@@ -304,14 +308,14 @@ func (poller *Poller) GetTotalOrphanedDifficultySince(ancestorHash string, orpha
 	return totalDifficulty, nil
 }
 
-func (poller *Poller) Reorg(newHead *types.Block, oldHead *models.Block, commonAncestorHash string) error {
+func (poller *Poller) Reorg(newHead *types.Block, oldHead *models.Block, canonicalAncestorHash string) error {
 	var err error
 
 	// For each block from (and including) oldHead up to (but
-	// excluding) the block with commonAncestorHash, orphan the
+	// excluding) the block with canonicalAncestorHash, orphan the
 	// block
 
-	for currentBlock := oldHead; currentBlock.Hash != commonAncestorHash; {
+	for currentBlock := oldHead; currentBlock.Hash != canonicalAncestorHash; {
 		err = poller.OrphanBlock(currentBlock)
 		if err != nil {
 			return err
@@ -327,35 +331,42 @@ func (poller *Poller) Reorg(newHead *types.Block, oldHead *models.Block, commonA
 
 	// Index newHead, then for each block from (but excluding)
 	// newHead up to (but excluding) the block with
-	// commonAncestorHash, canonicalize the block.
+	// canonicalAncestorHash, canonicalize the block.
 
 	err = poller.IndexNewBlock(newHead)
 	if err != nil {
 		return err
 	}
 
-	var firstToCanonicalize models.OrphanedBlock
-	err = poller.DB.Where("hash = ?", newHead.ParentHash().Hex()).First(&firstToCanonicalize).Error
-	if err != nil {
-		return err
-	}
-
-	for currentBlock := &firstToCanonicalize; currentBlock.Hash != commonAncestorHash; {
-		err = poller.CanonicalizeBlock(currentBlock)
+	// If reorg depth > 1
+	if newHead.ParentHash().Hex() != canonicalAncestorHash {
+		var currentBlock models.OrphanedBlock
+		err = poller.DB.Where("hash = ?", newHead.ParentHash().Hex()).First(&currentBlock).Error
 		if err != nil {
 			return err
 		}
 
-		var tempCurrentBlock models.OrphanedBlock
-		err = poller.DB.Where("hash = ?", currentBlock.ParentHash).First(&tempCurrentBlock).Error
-		if err != nil {
-			return err
+		for {
+			err = poller.CanonicalizeBlock(&currentBlock)
+			if err != nil {
+				return err
+			}
+
+			if currentBlock.ParentHash == canonicalAncestorHash {
+				break
+			}
+
+			var tempCurrentBlock models.OrphanedBlock
+			err = poller.DB.Where("hash = ?", currentBlock.ParentHash).First(&tempCurrentBlock).Error
+			if err != nil {
+				return err
+			}
+			currentBlock = tempCurrentBlock
 		}
-		currentBlock = &tempCurrentBlock
 	}
 
 	log.Printf(
-		"Reorged block %s for block %s/n",
+		"Reorged head %s for head %s\n",
 		oldHead.Hash,
 		newHead.Hash().Hex(),
 	)
@@ -440,6 +451,8 @@ func (poller *Poller) OrphanBlock(block *models.Block) error {
 		}
 	}
 
+	log.Printf("Orphaned block %s\n", block.Hash)
+
 	return nil
 }
 
@@ -520,6 +533,8 @@ func (poller *Poller) CanonicalizeBlock(orphanedBlock *models.OrphanedBlock) err
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Canonicalized block %s\n", orphanedBlock.Hash)
 
 	return nil
 }
