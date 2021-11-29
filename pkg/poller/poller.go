@@ -177,7 +177,7 @@ func (poller *Poller) IndexNewBlock(block *types.Block) error {
 		return err
 	}
 
-	log.Printf("Indexed block %s\n", blockModel.Hash)
+	log.Printf("Indexed block %s\n", blockModel.Number.Int.String())
 
 	return nil
 }
@@ -235,7 +235,7 @@ func (poller *Poller) IndexNewOrphanedBlock(block *types.Block) error {
 		}
 	}
 
-	log.Printf("Indexed orphaned block %s\n", orphanedBlockModel.Hash)
+	log.Printf("Indexed orphaned block %s\n", orphanedBlockModel.Number.Int.String())
 
 	return nil
 }

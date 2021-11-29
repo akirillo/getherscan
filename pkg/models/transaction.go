@@ -1,6 +1,9 @@
 package models
 
-import "github.com/jackc/pgtype"
+import (
+	"github.com/jackc/pgtype"
+	"gorm.io/gorm"
+)
 
 type Transaction struct {
 	Hash    string         `json:"hash" gorm:"primaryKey"`
@@ -35,4 +38,18 @@ func (db *DB) GetTransactionByHash(transactionHash string, includeBlock bool) (*
 	}
 
 	return &transaction, db.Where("hash = ?", transactionHash).First(&transaction).Error
+}
+
+func (db *DB) GetMostExpensiveTransactionForBlockHash(blockHash string) (*Transaction, error) {
+	var transaction Transaction
+	result := db.Where("block_hash = ?", blockHash).Order("gas*gas_price desc").Limit(1).Find(&transaction)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	return &transaction, nil
 }

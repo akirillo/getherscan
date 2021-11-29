@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"getherscan/pkg/models"
 	"getherscan/pkg/poller"
 	"os"
 	"path/filepath"
@@ -176,4 +177,54 @@ func AssertOrphanedBlocks(testPoller *poller.Poller, orphanedBlocks []types.Bloc
 	} else {
 		return err
 	}
+}
+
+func AssertBalance(testPoller *poller.Poller, balanceModel models.Balance, address string, block types.Block) error {
+	balance, err := testPoller.EthClient.BalanceAt(
+		testPoller.Context,
+		common.HexToAddress(address),
+		block.Number(),
+	)
+	if err != nil {
+		return err
+	}
+
+	if balance.Cmp(balanceModel.Balance.Int) != 0 {
+		return errors.New(fmt.Sprintf("%s's balance at block %s does not match", address, block.Hash().Hex()))
+	}
+
+	return nil
+}
+
+func AssertBalances(testPoller *poller.Poller, canonicalBlocks, orphanedBlocks []types.Block) error {
+	var err error
+	for _, canonicalBlock := range canonicalBlocks {
+		for _, address := range testPoller.TrackedAddresses {
+			balanceModel, err := testPoller.DB.GetAddressBalanceByBlockHash(address, canonicalBlock.Hash().Hex())
+			if err != nil {
+				return err
+			}
+
+			err = AssertBalance(testPoller, *balanceModel, address, canonicalBlock)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, orphanedBlock := range orphanedBlocks {
+		orphanedBlockHash := orphanedBlock.Hash().Hex()
+		for _, address := range testPoller.TrackedAddresses {
+			_, err = testPoller.DB.GetAddressBalanceByBlockHash(address, orphanedBlockHash)
+			if err == nil {
+				return errors.New(fmt.Sprintf("Found balance record for orphaned block %s", orphanedBlockHash))
+			}
+
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

@@ -86,24 +86,39 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func testPrologue() error {
+func testPrologue() (bool, error) {
 	err := testPoller.DB.ClearDB()
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	trackedAddressesFlagIsSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "tracked-addresses" {
+			trackedAddressesFlagIsSet = true
+		}
+	})
+
+	return trackedAddressesFlagIsSet, nil
 }
 
 func TestBasicIndexing(t *testing.T) {
-	err := testPrologue()
+	trackedAddressesFlagIsSet, err := testPrologue()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	blocks, err := test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
-	if err != nil {
-		t.Fatal(err)
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	err = test_utils.TestPoll(testPoller, blocks)
@@ -111,29 +126,60 @@ func TestBasicIndexing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = test_utils.AssertCanonicalBlocks(testPoller, []types.Block{
-		blocks[3],
-		blocks[2],
-		blocks[1],
-		blocks[0],
-	})
+	// If using recent blocks s.t. balances can be asserted, this
+	// test assumes that the recent blocks do not contain a reorg
+
+	canonicalBlocks := make([]types.Block, len(blocks))
+	for i, _ := range blocks {
+		canonicalBlocks[i] = blocks[len(blocks)-1-i]
+	}
+
+	orphanedBlocks := []types.Block{}
+
+	err = test_utils.AssertCanonicalBlocks(testPoller, canonicalBlocks)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = test_utils.AssertOrphanedBlocks(testPoller, []types.Block{})
+	err = test_utils.AssertOrphanedBlocks(testPoller, orphanedBlocks)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if trackedAddressesFlagIsSet {
+		err = test_utils.AssertBalances(testPoller, canonicalBlocks, orphanedBlocks)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
 func TestReorgIndexing(t *testing.T) {
-	err := testPrologue()
+	trackedAddressesFlagIsSet, err := testPrologue()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Indexes blocks in the following order:
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/reorg_test/reorg_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = test_utils.TestPoll(testPoller, blocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Regardless of whether or not recent blocks are being used,
+	// assumes blocks are in the following order:
 	// 0. Canonical ancestor
 	// 1. Soon-to-be-orphaned block (indexed canonically)
 	// 2. Soon-to-be-canonical block (indexed as orphan)
@@ -147,42 +193,51 @@ func TestReorgIndexing(t *testing.T) {
 	//        \-| 1 |
 	//           ---
 
-	blocks, err := test_utils.GetBlocksFromDir("testdata/reorg_test/reorg_blocks")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = test_utils.TestPoll(testPoller, blocks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = test_utils.AssertCanonicalBlocks(testPoller, []types.Block{
+	canonicalBlocks := []types.Block{
 		blocks[3],
 		blocks[2],
 		blocks[0],
-	})
+	}
+
+	orphanedBlocks := []types.Block{blocks[1]}
+
+	err = test_utils.AssertCanonicalBlocks(testPoller, canonicalBlocks)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = test_utils.AssertOrphanedBlocks(testPoller, []types.Block{blocks[1]})
+	err = test_utils.AssertOrphanedBlocks(testPoller, orphanedBlocks)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if trackedAddressesFlagIsSet {
+		err = test_utils.AssertBalances(testPoller, canonicalBlocks, orphanedBlocks)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
 // TODO: Test for multiple reorgs?
 
 func TestGetHead(t *testing.T) {
-	err := testPrologue()
+	trackedAddressesFlagIsSet, err := testPrologue()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	blocks, err := test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
-	if err != nil {
-		t.Fatal(err)
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	err = test_utils.TestPoll(testPoller, blocks)
@@ -208,14 +263,22 @@ func TestGetHead(t *testing.T) {
 }
 
 func TestGetBlockByHash(t *testing.T) {
-	err := testPrologue()
+	trackedAddressesFlagIsSet, err := testPrologue()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	blocks, err := test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
-	if err != nil {
-		t.Fatal(err)
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	err = test_utils.TestPoll(testPoller, blocks)
@@ -248,14 +311,22 @@ func TestGetBlockByHash(t *testing.T) {
 }
 
 func TestGetBlockByNumber(t *testing.T) {
-	err := testPrologue()
+	trackedAddressesFlagIsSet, err := testPrologue()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	blocks, err := test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
-	if err != nil {
-		t.Fatal(err)
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	err = test_utils.TestPoll(testPoller, blocks)
@@ -265,6 +336,7 @@ func TestGetBlockByNumber(t *testing.T) {
 
 	block := blocks[rand.Intn(len(blocks))]
 	blockHash := block.Hash().Hex()
+	// NOTE: big.Int.String() will truncate trailing zeroes...
 	blockNumberString := block.Number().String()
 
 	response, err := http.Get(fmt.Sprintf(
@@ -288,17 +360,93 @@ func TestGetBlockByNumber(t *testing.T) {
 	}
 }
 
-// TODO: TestGetBlocksByTransactionHash
-
-func TestGetTransactionByHash(t *testing.T) {
-	err := testPrologue()
+func TestGetBlocksByTransactionHash(t *testing.T) {
+	trackedAddressesFlagIsSet, err := testPrologue()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	blocks, err := test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/reorg_test/reorg_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = test_utils.TestPoll(testPoller, blocks)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Assumes same ordering as in TestReorgIndexing
+
+	// Find highest-fee transaction in canonical block, it should
+	// be present in orphaned block
+	block := blocks[2]
+	blockHash := block.Hash().Hex()
+	// Assumes proper indexing transactions (delegate the checking
+	// of this to TestReorgIndexing)
+	transaction, err := testPoller.DB.GetMostExpensiveTransactionForBlockHash(blockHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := http.Get(fmt.Sprintf(
+		"http://localhost%s/getBlocksByTransactionHash/%s",
+		testAPIServer.Server.Addr,
+		transaction.Hash,
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	var payload api_server.GetBlocksByTransactionHashPayload
+	err = json.NewDecoder(response.Body).Decode(&payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.CanonicalBlock.Hash != blockHash {
+		t.Fatal(errors.New("Incorrect canonical block"))
+	}
+
+	if len(payload.OrphanedBlocks) == 0 {
+		t.Fatal(errors.New("No orphaned blocks"))
+	}
+
+	if len(payload.OrphanedBlocks) > 1 {
+		t.Fatal(errors.New("Too many orphaned blocks"))
+	}
+
+	if payload.OrphanedBlocks[0].Hash != blocks[1].Hash().Hex() {
+		t.Fatal(errors.New("Incorrect orphaned block"))
+	}
+}
+
+func TestGetTransactionByHash(t *testing.T) {
+	trackedAddressesFlagIsSet, err := testPrologue()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/basic_test/basic_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	err = test_utils.TestPoll(testPoller, blocks)
@@ -332,9 +480,59 @@ func TestGetTransactionByHash(t *testing.T) {
 	}
 }
 
-// TODO: TestGetAddressBalanceByBlockHash
+// Before running this test, make sure to use the save_blocks CLI
+// command to save a set of recent blocks, so that we can fetch
+// balances for them on-the-fly using the RPC endpoint
+func TestGetAddressBalanceByBlockHash(t *testing.T) {
+	trackedAddressesFlagIsSet, err := testPrologue()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var blocks []types.Block
+	if !trackedAddressesFlagIsSet {
+		t.Log("tracked-addresses flag not set, skipping...")
+		return
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = test_utils.TestPoll(testPoller, blocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	address := testPoller.TrackedAddresses[rand.Intn(len(testPoller.TrackedAddresses))]
+
+	block := blocks[rand.Intn(len(blocks))]
+	blockHash := block.Hash().Hex()
+
+	response, err := http.Get(fmt.Sprintf(
+		"http://localhost%s/getAddressBalanceByBlockHash/%s/%s",
+		testAPIServer.Server.Addr,
+		address,
+		blockHash,
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	var balanceModel models.Balance
+	err = json.NewDecoder(response.Body).Decode(&balanceModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = test_utils.AssertBalance(testPoller, balanceModel, address, block)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 // General TODOs:
-// - Test indexing of balances
 // - Test edge cases
 // - Fuzz testing
