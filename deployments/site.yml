@@ -1,0 +1,8 @@
+- hosts: poller
+  roles:
+    - {role: common, tags: common}
+    - {role: poller, tags: poller}
+
+- hosts: api_server
+  - {role: common, tags: common}
+  - {role: api_server, tags: api_server}

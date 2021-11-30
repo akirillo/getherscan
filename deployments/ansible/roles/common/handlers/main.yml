@@ -1,0 +1,6 @@
+- name: restart google-guest-agent.service
+  become: yes
+  ignore_errors: yes
+  service:
+    name: google-guest-agent.service
+    state: restarted

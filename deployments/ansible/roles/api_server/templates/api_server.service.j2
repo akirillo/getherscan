@@ -1,0 +1,25 @@
+[Unit]
+Description=Getherscan API Server
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker stop getherscan-api-sever
+ExecStartPre=-/usr/bin/docker rm getherscan-api-server
+ExecStart=/usr/bin/docker run \
+            --log-driver journald \
+	    --publish 8000:8000 \
+            --name getherscan-api-server \
+            {{getherscan_image}} \
+            /api_sever \
+            serve \
+	    "{{db_connection_string}}" \
+	    "8000"
+Restart=on-failure
+RestartSec=30
+User=sudo
+
+[Install]
+WantedBy=multi-user.target
+

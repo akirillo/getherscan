@@ -1,0 +1,23 @@
+[Unit]
+Description=Getherscan Poller
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker stop getherscan-poller
+ExecStartPre=-/usr/bin/docker rm getherscan-poller
+ExecStart=/usr/bin/docker run \
+            --log-driver journald \
+            --name getherscan-poller \
+            {{getherscan_image}} \
+            /poller \
+            poll \
+            "{{ws_rpc_endpoint}}" \
+	    "{{db_connection_string}}"
+Restart=on-failure
+RestartSec=30
+User=sudo
+
+[Install]
+WantedBy=multi-user.target

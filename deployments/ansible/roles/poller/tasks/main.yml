@@ -1,0 +1,8 @@
+- name: Install poller.service
+  become: yes
+  template:
+    mode: "0600"
+    src: poller.service.j2
+    dest: /etc/systemd/system/poller.service
+  notify:
+    - reload poller.service

@@ -1,0 +1,6 @@
+- name: reload api_server.service
+  become: yes
+  systemd:
+    name: api_server.service
+    state: restarted
+    daemon_reload: yes

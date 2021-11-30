@@ -1,0 +1,6 @@
+- name: reload poller.service
+  become: yes
+  systemd:
+    name: poller.service
+    state: restarted
+    daemon_reload: yes
