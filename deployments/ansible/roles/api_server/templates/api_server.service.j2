@@ -14,8 +14,8 @@ ExecStart=/usr/bin/docker run \
             {{getherscan_image}} \
             /api_sever \
             serve \
-	    "{{db_connection_string}}" \
-	    "8000"
+	    {{ansible_db_connection_string}} \
+	    8000
 Restart=on-failure
 RestartSec=30
 User=sudo

@@ -1,0 +1,5 @@
+---
+getherscan_image: gcr.io/getherscan-staging/getherscan-container
+ws_rpc_endpoint: wss://mainnet.infura.io/ws/v3/5b913333cf074541ac8566a9e91d807b
+db_connection_string: todo
+

@@ -1,0 +1,18 @@
+### poller ###
+
+[poller]
+35.236.103.223
+
+[poller:vars]
+
+### api_server ###
+
+[api_server]
+34.94.21.92
+
+[api_server:vars]
+
+### All ###
+
+[all:vars]
+ansible_db_connection_string="host=34.94.214.184 port=5432 user=postgres password=12345 sslmode=disable"

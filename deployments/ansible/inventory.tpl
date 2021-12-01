@@ -1,7 +1,8 @@
-### ${name} ###
+%{ for inventory in inventories ~}
+${trimspace(inventory)}
 
-[${name}]
-${ip}
+%{ endfor ~}
+### All ###
 
-[${name}:vars]
-
+[all:vars]
+ansible_db_connection_string="${db_connection_string}"

@@ -13,8 +13,8 @@ ExecStart=/usr/bin/docker run \
             {{getherscan_image}} \
             /poller \
             poll \
-            "{{ws_rpc_endpoint}}" \
-	    "{{db_connection_string}}"
+            {{ws_rpc_endpoint}} \
+	    {{ansible_db_connection_string}}
 Restart=on-failure
 RestartSec=30
 User=sudo
