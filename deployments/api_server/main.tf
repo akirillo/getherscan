@@ -1,11 +1,11 @@
 variable "zone" {
   type = string
-  default = "us-west2"
+  default = "us-west2-a"
 }
 
 variable "name" {
   type = string
-  default = "api_server"
+  default = "api-server"
 }
 
 variable "instance-type" {
@@ -18,7 +18,7 @@ variable "disk-size" {
   default = 100
 }
 
-resource "google_compute_instance" "api_server" {
+resource "google_compute_instance" "api-server" {
   name                      = var.name
   description               = "Getherscan API Server"
   allow_stopping_for_update = false
@@ -57,7 +57,7 @@ resource "google_compute_instance" "api_server" {
 
 output "ansible_inventory" {
   value = templatefile("${path.module}/inventory.tpl", {
-    ip = google_compute_instance.coordinator.network_interface[0].network_ip
-    name = var.name
+    ip = google_compute_instance.api-server.network_interface.0.access_config.0.nat_ip
+    name = replace(var.name, "-", "_")
   })
 }

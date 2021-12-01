@@ -29,6 +29,11 @@ func PollAction(cliCtx *cli.Context) error {
 		return err
 	}
 
+	err = poller.DB.ClearDB()
+	if err != nil {
+		return err
+	}
+
 	go poller.Poll()
 
 	log.Println("Listening for new blocks...")

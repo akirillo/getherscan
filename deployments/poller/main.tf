@@ -1,6 +1,6 @@
 variable "zone" {
   type = string
-  default = "us-west2"
+  default = "us-west2-a"
 }
 
 variable "name" {
@@ -57,7 +57,7 @@ resource "google_compute_instance" "poller" {
 
 output "ansible_inventory" {
   value = templatefile("${path.module}/inventory.tpl", {
-    ip = google_compute_instance.coordinator.network_interface[0].network_ip
+    ip = google_compute_instance.poller.network_interface.0.access_config.0.nat_ip
     name = var.name
   })
 }
