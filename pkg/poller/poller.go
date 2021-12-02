@@ -66,6 +66,17 @@ func (poller *Poller) Poll() error {
 }
 
 func (poller *Poller) Index(block *types.Block) error {
+	// Check if we've already indexed this block (could be
+	// possible due to IndexMissedBlocks())
+	isIndexed, err := poller.CheckIfIndexed(block.Hash().Hex())
+	if err != nil {
+		return err
+	}
+
+	if isIndexed {
+		return nil
+	}
+
 	// Fetch latest indexed block
 	head, err := poller.DB.GetHead()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -83,8 +94,18 @@ func (poller *Poller) Index(block *types.Block) error {
 	}
 
 	// If new block's parent hash is not that of the current local
-	// head, check if reorg is needed
-	if head.Hash != block.ParentHash().Hex() {
+	// head, either a reorg is needed, or we didn't index the
+	// preceding block(s)
+	newBlockParentHash := block.ParentHash().Hex()
+	if head.Hash != newBlockParentHash {
+		_, err = poller.DB.GetOrphanedBlockByHash(newBlockParentHash)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// We haven't indexed the new block's parent
+			err = poller.IndexMissedBlocks(newBlockParentHash)
+		} else if err != nil {
+			return err
+		}
+
 		orphanedBlockModel, err := MakeOrphanedBlockModel(block)
 		if err != nil {
 			return err
@@ -236,6 +257,38 @@ func (poller *Poller) IndexNewOrphanedBlock(block *types.Block) error {
 	}
 
 	log.Printf("Indexed orphaned block %s\n", orphanedBlockModel.Number.Int.String())
+
+	return nil
+}
+
+// Fetches a chain of blocks that have been missed, until an ancestor
+// in this chain has been found in the indexer. Assumes that an
+// indexed ancestor exists. Indexes missed blocks as orphaned blocks,
+// they will be canonicalized appropriately if necessary in the reorg
+// check in Index()
+func (poller *Poller) IndexMissedBlocks(currentBlockHash string) error {
+	for {
+		isIndexed, err := poller.CheckIfIndexed(currentBlockHash)
+		if err != nil {
+			return err
+		}
+
+		if isIndexed {
+			break
+		}
+
+		block, err := poller.EthClient.BlockByHash(poller.Context, common.HexToHash(currentBlockHash))
+		if err != nil {
+			return err
+		}
+
+		err = poller.IndexNewOrphanedBlock(block)
+		if err != nil {
+			return err
+		}
+
+		currentBlockHash = block.ParentHash().Hex()
+	}
 
 	return nil
 }

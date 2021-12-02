@@ -98,28 +98,28 @@ Should I include load balancing across many nodes/RPC endpoints?
 
 ## API
 Query block by number:
-```
+```sql
 SELECT *
 FROM blocks
 WHERE number = ?;
 ```
 
 Query block by hash:
-```
+```sql
 SELECT *
 FROM blocks
 WHERE hash = ?;
 ```
 
 Query transaction by hash:
-```
+```sql
 SELECT *
 FROM transactions
 WHERE hash = ?;
 ```
 
 Query blocks by transaction hash:
-```
+```sql
 WITH tx_block_hash AS (
 	SELECT block_hash
 	FROM transactions
@@ -144,7 +144,7 @@ WHERE hash IN orphaned_tx_block_hash;
 ```
 
 Query head of the chain:
-```
+```sql
 SELECT *
 FROM blocks
 ORDER BY number DESC
@@ -152,7 +152,7 @@ LIMIT 1;
 ```
 
 Query address balance by block hash:
-```
+```sql
 SELECT *
 FROM balances
 WHERE address = ?_1

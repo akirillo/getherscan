@@ -219,6 +219,60 @@ func TestReorgIndexing(t *testing.T) {
 	}
 }
 
+func TestOutOfOrderIndexing(t *testing.T) {
+	trackedAddressesFlagIsSet, err := testPrologue()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var blocks []types.Block
+	if trackedAddressesFlagIsSet {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/balance_test/recent_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		blocks, err = test_utils.GetBlocksFromDir("testdata/out_of_order_test/out_of_order_blocks")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = test_utils.TestPoll(testPoller, blocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Regardless of whether or not recent blocks are being used,
+	// assumes blocks are in reverse order and all canonical
+
+	canonicalBlocks := []types.Block{
+		blocks[1],
+		blocks[2],
+		blocks[3],
+		blocks[0],
+	}
+
+	orphanedBlocks := []types.Block{}
+
+	err = test_utils.AssertCanonicalBlocks(testPoller, canonicalBlocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = test_utils.AssertOrphanedBlocks(testPoller, orphanedBlocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if trackedAddressesFlagIsSet {
+		err = test_utils.AssertBalances(testPoller, canonicalBlocks, orphanedBlocks)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // TODO: Test for multiple reorgs?
 
 func TestGetHead(t *testing.T) {

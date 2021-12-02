@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgtype"
+	"gorm.io/gorm"
 )
 
 func MakeBlockModel(block *types.Block) (*models.Block, error) {
@@ -278,4 +279,24 @@ func GetTrackedAddressesFromFile(trackedAddressesFilePath string) ([]string, err
 	}
 
 	return trackedAddresses, nil
+}
+
+func (poller *Poller) CheckIfIndexed(blockHash string) (bool, error) {
+	// Check if block has been indexed as a canonical block
+	_, err := poller.DB.GetBlockByHash(blockHash)
+	if err == nil {
+		return true, nil
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Check if it's been indexed as an orphaned block
+		_, err = poller.DB.GetOrphanedBlockByHash(blockHash)
+		if err == nil {
+			return true, nil
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	return false, err
 }
