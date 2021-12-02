@@ -70,12 +70,10 @@ Beyond that, classic database scaling techniques like read replicas, load balanc
 
 ## Poller
 
+Scaling the poller essentially boils down to forking more processes running `Poll()` on different RPC endpoints. The nodes providing these endpoints should be geographically distributed to get good coverage over the gossip network. Additionally, we'd need to acquire a lock on the database during the `Reorg()` method to ensure data consistency. Wrapping `Reorg()` in a DB transaction is necessary as well, even now (thanks to Will for pointing this out!).
 
+The `Index()` method already prevents redundant indexing, but we could keep a cache of recently indexed block hashes to spare ourselves a DB read when deciding if a block fetched from one of the endpoints needs to be indexed or not.
 
 ## API Server
 
-- Load balancing
-	- Connecting to multiple nodes/RPC endpoints (running multiple pollers)
-	- Running multiple API servers
-	- Distributing database
-		- Consider NoSQL
+Scaling the API server is fairly straightforward, it would simply mean running more instances behind a load balancer.
