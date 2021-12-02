@@ -15,4 +15,8 @@
 ### All ###
 
 [all:vars]
-ansible_db_connection_string="host=34.94.214.184 port=5432 user=postgres password=12345 sslmode=disable"
+ansible_db_host="34.94.214.184"
+ansible_db_port="5432"
+ansible_db_user="postgres"
+ansible_db_password="12345"
+ansible_db_name="getherscan_database"

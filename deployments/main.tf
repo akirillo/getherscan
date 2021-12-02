@@ -15,6 +15,11 @@ provider "google-beta" {
   region = "us-west-2"
 }
 
+# resource "google_container_registry" "gcr" {
+#   project = "getherscan-staging"
+#   location = "US"
+# }
+
 module "database" {
   source = "./database"
 }
@@ -39,5 +44,5 @@ module "ansible" {
     module.poller.ansible_inventory,
     module.api_server.ansible_inventory
   ]
-  db_connection_string = module.database.db_connection_string
+  db_connection_params = module.database.db_connection_params
 }

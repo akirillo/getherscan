@@ -4,5 +4,9 @@
     mode: "0600"
     src: poller.service.j2
     dest: /etc/systemd/system/poller.service
+    owner: akirillo
+    group: akirillo
   notify:
     - reload poller.service
+
+- meta: flush_handlers

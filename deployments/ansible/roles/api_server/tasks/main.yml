@@ -4,6 +4,8 @@
     mode: "0600"
     src: api_server.service.j2
     dest: /etc/systemd/system/api_server.service
+    owner: akirillo
+    group: akirillo
   notify:
     - reload api_server.service
 

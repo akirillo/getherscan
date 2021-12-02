@@ -66,6 +66,12 @@ resource "google_sql_user" "user" {
   password = var.user_password
 }
 
-output "db_connection_string" {
-  value = "host=${google_sql_database_instance.instance.public_ip_address} port=5432 user=${google_sql_user.user.name} password=${google_sql_user.user.password} sslmode=disable"
+output "db_connection_params" {
+  value = {
+    host = google_sql_database_instance.instance.public_ip_address
+    port = "5432"
+    user = google_sql_user.user.name
+    password = google_sql_user.user.password
+    dbname = google_sql_database.database.name
+  }
 }

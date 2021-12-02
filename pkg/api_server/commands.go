@@ -1,6 +1,7 @@
 package api_server
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,8 +11,20 @@ import (
 )
 
 func ServeAction(cliCtx *cli.Context) error {
-	dbConnectionString := cliCtx.Args().Get(0)
-	port := cliCtx.Args().Get(1)
+	dbHost := cliCtx.Args().Get(0)
+	dbPort := cliCtx.Args().Get(1)
+	dbUser := cliCtx.Args().Get(2)
+	dbPassword := cliCtx.Args().Get(3)
+	dbName := cliCtx.Args().Get(4)
+	dbConnectionString := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost,
+		dbPort,
+		dbUser,
+		dbPassword,
+		dbName,
+	)
+	port := cliCtx.Args().Get(5)
 
 	apiServer := new(APIServer)
 	err := apiServer.Initialize(dbConnectionString, port)

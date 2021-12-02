@@ -11,13 +11,16 @@ ExecStart=/usr/bin/docker run \
             --log-driver journald \
             --name getherscan-poller \
             {{getherscan_image}} \
-            /poller \
-            poll \
+	    go run cmd/poller/main.go poll \
             {{ws_rpc_endpoint}} \
-	    {{ansible_db_connection_string}}
+	    {{ansible_db_host}} \
+	    {{ansible_db_port}} \
+	    {{ansible_db_user}} \
+	    {{ansible_db_password}} \
+	    {{ansible_db_name}} \
 Restart=on-failure
 RestartSec=30
-User=sudo
+User=root
 
 [Install]
 WantedBy=multi-user.target
